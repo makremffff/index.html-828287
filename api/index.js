@@ -550,7 +550,8 @@ async function handleSpinResult(req, res, body) {
     const id = parseInt(user_id);
     
     // 1. Check and Consume Action ID (Security Check)
-    if (!await validateAndUseActionId(res, id, action_id, 'preSpin')) return; // Uses the 'preSpin' ID
+    // ⬇️ التعديل هنا: يجب التحقق من واستهلاك Action ID من نوع 'spinResult'
+    if (!await validateAndUseActionId(res, id, action_id, 'spinResult')) return; 
     
     // 2. Check and reset daily limits before proceeding
     await resetDailyLimitsIfExpired(id);
