@@ -166,9 +166,10 @@
         #wheelBox{position:relative;margin-bottom:25px}
         #wheelCanvas{
             border-radius:50%;
-            box-shadow:0 0 0 8px #eee, 0 8px 30px rgba(0,0,0,.3); 
-            background-color: #fff; 
-            border: 1px solid #ccc; 
+            /* Enhanced 3D Look */
+            box-shadow:0 0 0 10px #eee, 0 15px 35px rgba(0,0,0,0.4); 
+            background-color: #fefefe; 
+            border: 2px solid #ccc; 
         }
         .arrow{
             position:absolute;top:-16px;left:50%;transform:translateX(-50%);
@@ -343,13 +344,13 @@
             opacity: 1;
         }
 
-        /* Custom Alert Box - 3D Pencil Style */
+        /* Custom Alert Box - 3D Pencil Style - SLIGHTLY SMALLER */
         .custom-alert-box {
             width: 90%;
-            max-width: 300px;
+            max-width: 280px; /* Smaller max width */
             background: #ffffed; /* Off-white paper background */
             border-radius: 15px;
-            padding: 25px;
+            padding: 20px; /* Reduced padding */
             text-align: center;
             box-shadow: 
                 0 8px 15px rgba(0, 0, 0, 0.3), /* Base shadow */
@@ -364,39 +365,37 @@
 
         .alert-title {
             font-family: 'Vazirmatn', sans-serif;
-            font-size: 22px;
+            font-size: 20px; /* Slightly smaller title */
             font-weight: 700;
-            color: #4CAF50; /* Default green for success */
-            margin-bottom: 10px;
-            /* Pencil text effect */
+            color: #4CAF50; 
+            margin-bottom: 8px; /* Reduced margin */
             text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.1); 
             letter-spacing: 0.5px;
         }
 
         .alert-message {
             font-family: 'Vazirmatn', sans-serif;
-            font-size: 14px;
-            color: #333; /* Darker text for pencil effect */
-            margin-bottom: 20px;
-            white-space: pre-wrap; /* To handle newlines from \n\n */
+            font-size: 13px; /* Slightly smaller message */
+            color: #333; 
+            margin-bottom: 18px; /* Reduced margin */
+            white-space: pre-wrap; 
         }
 
         .alert-icon {
-            font-size: 40px;
-            margin-bottom: 15px;
+            font-size: 35px; /* Slightly smaller icon */
+            margin-bottom: 12px;
         }
         .alert-icon::before {
-            /* Base icon style using a simple emoji or character */
             content: '⭐';
         }
 
         .alert-close-btn {
-            background: #6b4d32; /* Pencil color button */
+            background: #6b4d32; 
             color: #fff;
             border: none;
-            padding: 10px 20px;
+            padding: 9px 18px; /* Slightly smaller button */
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 0 #543b27;
@@ -581,6 +580,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                 currentProgress=100; clearInterval(loadingInterval);
                 loadingScreen.classList.add('hidden');
                 initDailyProgress(); 
+                playBGAudio(); // ⬅️ NEW: Start audio immediately after loading screen is hidden
             }
             progressBar.style.width = currentProgress+'%';
             percentageTxt.textContent = Math.floor(currentProgress)+'%';
@@ -613,7 +613,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
             // Attempt to play only if it's paused or not playing
             if (backgroundAudio.paused) {
                 backgroundAudio.volume = 0.4; // Set a moderate volume
-                backgroundAudio.play().catch(e => console.log("Background audio play failed:", e));
+                backgroundAudio.play().catch(e => console.log("Background audio play failed, waiting for user click:", e));
             }
         }
         
@@ -641,9 +641,8 @@ You will earn 5% of the revenue from every referral you bring through ads!
          * @param {'success'|'error'|'warning'} type - The type of alert.
          */
         function showCustomAlert(title, message, type = 'warning') {
-            // No Arabic cleaning needed, assuming title is clean English/text.
             const finalTitle = title;
-            const finalMessage = message.replace(/(\r\n|\n|\r)/gm, "\n"); // Keep newlines as is for pre-wrap
+            const finalMessage = message.replace(/(\r\n|\n|\r)/gm, "\n"); 
 
             alertTitleEl.textContent = finalTitle;
             alertMessageEl.textContent = finalMessage;
@@ -653,18 +652,15 @@ You will earn 5% of the revenue from every referral you bring through ads!
 
             customAlert.classList.add('visible');
             
-            // Play sound effect
-            playSFX(type === 'error' ? 'error' : 'success'); // Use success for both success and warning
+            playSFX(type === 'error' ? 'error' : 'success'); 
         }
 
 
         /* ===== Telegram User & Referral Setup (Modified to include audio) ===== */
         Telegram.WebApp.ready();
         
-        // --- ADDED ---: Start playing music on the first interaction (ready)
-        // Note: This often fails in many browsers, so we also add it to a button click later.
-        playBGAudio();
-        // --- END ADDED ---
+        // --- REMOVED ---: Removed the unnecessary playBGAudio() here
+        // --- END REMOVED ---
         
         let tgUser = null;
         if(Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user){
@@ -1048,14 +1044,20 @@ You will earn 5% of the revenue from every referral you bring through ads!
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            ctx.font = '24px Vazirmatn, sans-serif'; // Set font size for emoji
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+
             sectors.forEach((val, i) => {
                 const start = i * arc - Math.PI / 2; 
-                
+                const end = start + arc;
+
                 // Draw sector background
                 ctx.beginPath();
                 ctx.fillStyle = colors[i % colors.length];
                 ctx.moveTo(centerX, centerY);
-                ctx.arc(centerX, centerY, radius, start, start + arc);
+                ctx.arc(centerX, centerY, radius, start, end);
                 ctx.closePath();
                 ctx.fill();
 
@@ -1064,11 +1066,23 @@ You will earn 5% of the revenue from every referral you bring through ads!
                 ctx.strokeStyle = '#fff'; 
                 ctx.lineWidth = 3;
                 ctx.moveTo(centerX, centerY);
-                ctx.arc(centerX, centerY, radius, start, start + arc);
+                ctx.arc(centerX, centerY, radius, start, end);
                 ctx.closePath();
                 ctx.stroke();
 
-                // 🛠️ تم حذف الكود الذي يرسم النصوص داخل العجلة لتكون فارغة تماماً
+                // 🐱 Add Emoji to the sector
+                // Calculate the position for the emoji (midpoint of the arc, halfway to the edge)
+                const angle = start + arc / 2;
+                const textX = centerX + radius * 0.65 * Math.cos(angle);
+                const textY = centerY + radius * 0.65 * Math.sin(angle);
+
+                // Rotate context to align the emoji with the sector
+                ctx.save();
+                ctx.translate(textX, textY);
+                ctx.rotate(angle + Math.PI / 2); // Rotate to be perpendicular to the radius
+                ctx.fillStyle = '#000'; // Color doesn't matter for emoji usually
+                ctx.fillText('🐱', 0, 0); 
+                ctx.restore();
             });
 
             // Draw Center Circle
