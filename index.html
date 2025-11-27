@@ -325,6 +325,99 @@
             word-break: break-all;
             white-space: normal;
         }
+        
+        /* Custom Alert Overlay */
+        .custom-alert-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none; /* Hidden by default */
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .custom-alert-overlay.visible {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Custom Alert Box - 3D Pencil Style */
+        .custom-alert-box {
+            width: 90%;
+            max-width: 300px;
+            background: #ffffed; /* Off-white paper background */
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 
+                0 8px 15px rgba(0, 0, 0, 0.3), /* Base shadow */
+                inset 0 0 10px rgba(0, 0, 0, 0.05); /* Inner light effect */
+            border: 3px solid #6b4d32; /* Pencil/Wood border */
+            transform: perspective(600px) rotateX(0deg) scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Spring effect */
+        }
+        .custom-alert-overlay.visible .custom-alert-box {
+            transform: perspective(600px) rotateX(0deg) scale(1);
+        }
+
+        .alert-title {
+            font-family: 'Vazirmatn', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: #4CAF50; /* Default green for success */
+            margin-bottom: 10px;
+            /* Pencil text effect */
+            text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.1); 
+            letter-spacing: 0.5px;
+        }
+
+        .alert-message {
+            font-family: 'Vazirmatn', sans-serif;
+            font-size: 14px;
+            color: #333; /* Darker text for pencil effect */
+            margin-bottom: 20px;
+            white-space: pre-wrap; /* To handle newlines from \n\n */
+        }
+
+        .alert-icon {
+            font-size: 40px;
+            margin-bottom: 15px;
+        }
+        .alert-icon::before {
+            /* Base icon style using a simple emoji or character */
+            content: '⭐';
+        }
+
+        .alert-close-btn {
+            background: #6b4d32; /* Pencil color button */
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #543b27;
+            transition: all 0.1s ease;
+        }
+        .alert-close-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #543b27;
+        }
+
+        /* Specific styles for Success */
+        .custom-alert-box.success .alert-title { color: #28a745; }
+        .custom-alert-box.success .alert-icon::before { content: '✅'; }
+
+        /* Specific styles for Error/Warning */
+        .custom-alert-box.error .alert-title { color: #dc3545; }
+        .custom-alert-box.error .alert-icon::before { content: '❌'; }
+
+        /* Specific styles for Warning/Info */
+        .custom-alert-box.warning .alert-title { color: #ffc107; }
+        .custom-alert-box.warning .alert-icon::before { content: '⚠️'; }
 
     </style>
 </head>
@@ -443,6 +536,28 @@ You will earn 5% of the revenue from every referral you bring through ads!
 
         <button class="back-btn" onclick="hideInvite()">Back to Main</button>
     </div>
+    
+    <div id="customAlert" class="custom-alert-overlay">
+        <div class="custom-alert-box">
+            <div class="alert-icon" id="alertIcon"></div>
+            <div class="alert-title" id="alertTitle"></div>
+            <div class="alert-message" id="alertMessage"></div>
+            <button class="alert-close-btn" onclick="document.getElementById('customAlert').classList.remove('visible')">حسناً</button>
+        </div>
+    </div>
+
+    <audio id="backgroundAudio" loop>
+        <source src="audio.mp3" type="audio/mp3">
+        Your browser does not support the audio element.
+    </audio>
+
+    <audio id="successSFX">
+        <source src="success.mp3" type="audio/mp3"> 
+    </audio>
+    <audio id="errorSFX">
+        <source src="error.mp3" type="audio/mp3"> 
+    </audio>
+
     <script src="https://ad.gigapub.tech/script?id=3459"></script>
     <script>
         /* ===== Loading ===== */
@@ -478,9 +593,78 @@ You will earn 5% of the revenue from every referral you bring through ads!
             lc.style.opacity='0'; lc.style.transform='translateY(30px)';
             setTimeout(()=>{ lc.style.transition='all .8s ease-out'; lc.style.opacity='1'; lc.style.transform='translateY(0)'; },100);
         });
+        
+        /* ===== Custom Alert & Audio Functions ===== */
+        
+        const backgroundAudio = document.getElementById('backgroundAudio');
+        const successSFX = document.getElementById('successSFX');
+        const errorSFX = document.getElementById('errorSFX');
+        const customAlert = document.getElementById('customAlert');
+        const alertBox = customAlert.querySelector('.custom-alert-box');
+        const alertTitleEl = document.getElementById('alertTitle');
+        const alertMessageEl = document.getElementById('alertMessage');
+        const alertIconEl = document.getElementById('alertIcon');
 
-        /* ===== Telegram User & Referral Setup ===== */
+
+        /**
+         * Plays background music. Must be called after user interaction.
+         */
+        function playBGAudio() {
+            // Attempt to play only if it's paused or not playing
+            if (backgroundAudio.paused) {
+                backgroundAudio.volume = 0.4; // Set a moderate volume
+                backgroundAudio.play().catch(e => console.log("Background audio play failed:", e));
+            }
+        }
+        
+        /**
+         * Plays a sound effect (Success or Error).
+         */
+        function playSFX(type) {
+            let sfx;
+            if (type === 'success') {
+                sfx = successSFX;
+            } else if (type === 'error') {
+                sfx = errorSFX;
+            } else {
+                return;
+            }
+            sfx.currentTime = 0; // Rewind to start
+            sfx.volume = 0.8;
+            sfx.play().catch(e => console.log("SFX play failed:", e));
+        }
+
+        /**
+         * Shows a custom, styled alert modal.
+         * @param {string} title - The title of the alert.
+         * @param {string} message - The message content.
+         * @param {'success'|'error'|'warning'} type - The type of alert.
+         */
+        function showCustomAlert(title, message, type = 'warning') {
+            const finalTitle = title.replace(/[^\w\s\u0600-\u06FF]/g, ''); // Basic cleaning for Arabic text and removing emojis/symbols
+            const finalMessage = message.replace(/(\r\n|\n|\r)/gm, "\n"); // Keep newlines as is for pre-wrap
+
+            alertTitleEl.textContent = finalTitle;
+            alertMessageEl.textContent = finalMessage;
+
+            alertBox.classList.remove('success', 'error', 'warning');
+            alertBox.classList.add(type);
+
+            customAlert.classList.add('visible');
+            
+            // Play sound effect
+            playSFX(type === 'error' ? 'error' : 'success'); // Use success for both success and warning
+        }
+
+
+        /* ===== Telegram User & Referral Setup (Modified to include audio) ===== */
         Telegram.WebApp.ready();
+        
+        // --- ADDED ---: Start playing music on the first interaction (ready)
+        // Note: This often fails in many browsers, so we also add it to a button click later.
+        playBGAudio();
+        // --- END ADDED ---
+        
         let tgUser = null;
         if(Telegram.WebApp.initDataUnsafe && Telegram.WebApp.initDataUnsafe.user){
             tgUser = Telegram.WebApp.initDataUnsafe.user;
@@ -521,13 +705,13 @@ You will earn 5% of the revenue from every referral you bring through ads!
         // **fetchApi Function** // ------------------------------------------------------------------
         async function fetchApi(payload) {
             if (!tgUser) {
-                Telegram.WebApp.showAlert('🚨 Critical Error: User data not initialized. Please restart the app. [CODE: U_NIL]');
+                showCustomAlert('خطأ حرج!', 'بيانات المستخدم غير مهيأة. يرجى إعادة تشغيل التطبيق. [رمز: U_NIL]', 'error');
                 return { ok: false, error: 'User not initialized' };
             }
 
             const initData = Telegram.WebApp.initData;
             if (!initData) {
-                Telegram.WebApp.showAlert('🚨 Critical Error: Initialization data is missing. Please restart the app. [CODE: ID_MS]');
+                showCustomAlert('خطأ حرج!', 'بيانات الإعداد مفقودة. يرجى إعادة تشغيل التطبيق. [رمز: ID_MS]', 'error');
                 return { ok: false, error: 'InitData missing' };
             }
 
@@ -570,7 +754,34 @@ You will earn 5% of the revenue from every referral you bring through ads!
                     } else if (response.status === 408) {
                         alertMessage = `⏳ TIMEOUT ⏳\n\n[STATUS] Security token expired. Please try again immediately.`;
                     }
-                    Telegram.WebApp.showAlert(alertMessage);
+                    
+                    // NEW CUSTOM ALERT LOGIC
+                    let alertTitle = 'خطأ في العملية!';
+                    let alertType = 'error';
+                    let cleanMessage = errorMessage;
+
+                    if (response.status === 429) {
+                        alertTitle = 'تجاوز الحد الأقصى!';
+                        alertType = 'warning';
+                        cleanMessage = 'لقد تجاوزت الحد المسموح به من الطلبات. يرجى المحاولة لاحقاً.';
+                    } else if (alertMessage.includes('ACCESS DENIED') || alertMessage.includes('banned')) {
+                        alertTitle = 'وصول مرفوض!';
+                        alertType = 'error';
+                        cleanMessage = 'تم حظر هذا الحساب.';
+                    } else if (errorMessage.includes('limit reached')) {
+                        alertTitle = 'وصلت للحد اليومي!';
+                        alertType = 'warning';
+                        cleanMessage = 'لقد وصلت إلى الحد الأقصى للإجراءات المسموح بها اليوم.';
+                    } else if (alertMessage.includes('SECURITY ERROR') || response.status === 409 || response.status === 408) {
+                        alertTitle = 'خطأ أمان!';
+                        alertType = 'error';
+                        cleanMessage = 'حدث خطأ متعلق بالأمان. يرجى المحاولة مرة أخرى.';
+                    } else {
+                        // Attempt to extract message after a common prefix
+                        cleanMessage = alertMessage.split('] ')[1] || errorMessage; 
+                    }
+
+                    showCustomAlert(alertTitle, cleanMessage, alertType);
                     return { ok: false, error: errorMessage };
                 }
 
@@ -580,7 +791,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                     Telegram.WebApp.hideProgress();
                 }
                 console.error(`General Fetch Error for type ${payload.type}:`, error.message);
-                Telegram.WebApp.showAlert(`🔌 NETWORK ERROR 🔌\n\n[STATUS] Could not connect to the server. Please check your internet connection.`);
+                showCustomAlert('خطأ في الاتصال!', 'تعذر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.', 'error');
                 return { ok: false, error: error.message };
             }
         }
@@ -634,7 +845,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                 if (result.data.is_banned) {
                     isBanned = true;
                     mainScreen.classList.remove('visible');
-                    Telegram.WebApp.showAlert('🚨 ACCOUNT BANNED 🚨\n\n[STATUS] This account has been permanently restricted due to policy violations. Access to the mini app is denied.');
+                    showCustomAlert('حساب محظور!', 'تم تقييد هذا الحساب نهائياً بسبب انتهاكات السياسة. تم رفض الوصول إلى التطبيق المصغر.', 'error');
                     return;
                 }
                 
@@ -708,7 +919,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
         
         async function watchAds(){
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             
@@ -746,16 +957,22 @@ You will earn 5% of the revenue from every referral you bring through ads!
                             });
                         }
                         
-                        let adAlert = `🎉 REWARD GRANTED 🎉\n\n[CREDIT] Ad watched, you earned ${actualReward} SHIB.`;
+                        // NEW CUSTOM ALERT LOGIC
+                        let alertTitle = 'تم منح المكافأة!';
+                        let alertType = 'success';
+                        let alertMessage = `شوهد الإعلان، لقد ربحت ${actualReward} SHIB.`;
+                        
                         if(adResult.data.new_ads_count >= DAILY_MAX){
-                            adAlert = `🏆 MISSION ACCOMPLISHED 🏆\n\n[CONGRATS] You completed all ${DAILY_MAX} ads today. Come back tomorrow!`;
+                            alertTitle = 'أنجزت المهمة!';
+                            alertMessage = `تهانينا! لقد أكملت جميع إعلانات ${DAILY_MAX} لهذا اليوم. عد غداً!`;
                         }
-                        Telegram.WebApp.showAlert(adAlert);
+                        showCustomAlert(alertTitle, alertMessage, alertType);
+
                     }
                 })
                 .catch(e => {
                     console.error("GigaPub Ad failed to show or was dismissed:", e);
-                    Telegram.WebApp.showAlert('❌ AD LOAD FAIL ❌\n\n[ERROR] Failed to load advertisement. Please try again.');
+                    showCustomAlert('فشل تحميل الإعلان!', 'فشل في تحميل الإعلان. يرجى المحاولة مرة أخرى.', 'error');
                 });
         }
         function circleClick(){ console.log('Circle clicked'); }
@@ -764,7 +981,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
         
         function inviteFriends() {
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             mainScreen.classList.remove('visible');
@@ -797,16 +1014,16 @@ You will earn 5% of the revenue from every referral you bring through ads!
             const inviteLink = document.getElementById('referralLinkInput').value;
             
             if (inviteLink === 'User data not available.' || inviteLink === 'Generating Link...') {
-                Telegram.WebApp.showAlert('❌ ERROR ❌\n\n[STATUS] The referral link is not ready yet. Please wait a moment.');
+                showCustomAlert('خطأ!', 'رابط الإحالة غير جاهز بعد. يرجى الانتظار قليلاً.', 'warning');
                 return;
             }
 
             navigator.clipboard.writeText(inviteLink).then(() => {
                 Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-                Telegram.WebApp.showAlert('✅ LINK COPIED ✅\n\n[STATUS] Referral link copied to clipboard.');
+                showCustomAlert('تم النسخ!', 'تم نسخ رابط الإحالة إلى الحافظة.', 'success');
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
-                Telegram.WebApp.showAlert('❌ COPY FAILED ❌\n\n[ERROR] Failed to copy link. Please try again.');
+                showCustomAlert('فشل النسخ!', 'فشل نسخ الرابط. يرجى المحاولة مرة أخرى.', 'error');
             });
         }
         /* ===== End of Invite Screen Functions ===== */
@@ -876,7 +1093,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
             if(spinning) return;
             
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             
@@ -903,7 +1120,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
             // 3. Request Action ID from the Server for the spin result (prize confirmation)
             const spinResultActionId = await requestActionId('spinResult');
             if (!spinResultActionId) {
-                Telegram.WebApp.showAlert('🔒 SECURITY ERROR 🔒\n\n[STATUS] Failed to get confirmation token. Please try again.');
+                showCustomAlert('خطأ أمان!', 'فشل الحصول على رمز التأكيد. يرجى المحاولة مرة أخرى.', 'error');
                 await loadUserData(); 
                 return;
             }
@@ -948,7 +1165,8 @@ You will earn 5% of the revenue from every referral you bring through ads!
                                 spins_today: spinResultRes.data.new_spins_count
                             });
                             
-                            spinResult.textContent = `🎉 REWARD GRANTED 🎉\n\n[WINNER] You won ${finalPrize} SHIB!`;
+                            spinResult.textContent = `🎉\n\nلقد ربحت ${finalPrize} SHIB!`;
+                            showCustomAlert('تهانينا!', `لقد ربحت ${finalPrize} SHIB!`, 'success');
                             
                             await loadUserData(); 
                             
@@ -956,6 +1174,10 @@ You will earn 5% of the revenue from every referral you bring through ads!
 
                     } else {
                         spinResult.textContent = `❌ ERROR ❌\n\n[STATUS] Error receiving prize. Please try again.`;
+                        // Custom Alert for spin result error is handled by fetchApi, but we ensure it here too:
+                        if (!spinResultRes.error.includes('SECURITY ERROR')) { 
+                            showCustomAlert('خطأ!', 'حدث خطأ في استلام الجائزة. يرجى المحاولة مرة أخرى.', 'error');
+                        }
                         await loadUserData(); 
                     }
                     
@@ -964,7 +1186,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                 })
                 .catch(e => {
                     console.error("GigaPub Ad failed to show or was dismissed:", e);
-                    Telegram.WebApp.showAlert('❌ AD LOAD FAIL ❌\n\n[STATUS] Failed to load ad. Spin was not counted. Please try again.');
+                    showCustomAlert('فشل تحميل الإعلان!', 'فشل تحميل الإعلان. لم يتم احتساب الدوران. يرجى المحاولة مرة أخرى.', 'error');
                     loadUserData(); 
                 });
         }
@@ -972,7 +1194,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
         /* ===== Navigation and Withdraw ===== */
         function showSpin(){
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             mainScreen.classList.remove('visible');
@@ -987,7 +1209,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
         
         function showWithdraw(){
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             mainScreen.classList.remove('visible');
@@ -1009,16 +1231,17 @@ You will earn 5% of the revenue from every referral you bring through ads!
             }
 
             let tableHTML = '<table class="history-table">';
-            tableHTML += '<thead><tr><th>Date</th><th>Amount (SHIB)</th><th>Status</th></tr></thead>';
+            tableHTML += '<thead><tr><th>التاريخ</th><th>المبلغ (SHIB)</th><th>الحالة</th></tr></thead>';
             tableHTML += '<tbody>';
 
             withdrawalHistory.forEach(record => {
+                const statusText = record.status === 'pending' ? 'قيد الانتظار' : 'مكتمل';
                 const statusClass = record.status === 'pending' ? 'status-pending' : 'status-completed';
                 tableHTML += `
                     <tr>
                         <td>${record.date}</td>
                         <td>${record.amount.toLocaleString()}</td>
-                        <td><span class="${statusClass}">${record.status}</span></td>
+                        <td><span class="${statusClass}">${statusText}</span></td>
                     </tr>
                 `;
             });
@@ -1029,16 +1252,16 @@ You will earn 5% of the revenue from every referral you bring through ads!
 
         async function confirmWithdraw(){
             if (isBanned) {
-                 Telegram.WebApp.showAlert('🚨 ACCESS DENIED 🚨\n\n[STATUS] This user account has been banned.');
+                 showCustomAlert('وصول محظور!', 'تم حظر هذا الحساب.', 'error');
                  return;
             }
             
             const binanceId = document.getElementById('binanceId').value.trim();
             const amount = parseInt(document.getElementById('withdrawAmount').value);
             
-            if(!binanceId || binanceId.length < 8){ Telegram.WebApp.showAlert('⚠️ INVALID INPUT ⚠️\n\n[STATUS] Please enter a valid Binance User ID (minimum 8 digits).'); return; }
-            if(isNaN(amount) || amount < 400){ Telegram.WebApp.showAlert('⚠️ INVALID AMOUNT ⚠️\n\n[STATUS] The minimum withdrawal amount is 400 SHIB.'); return; }
-            if(amount > shibBalance){ Telegram.WebApp.showAlert(`❌ BALANCE ERROR ❌\n\n[STATUS] Insufficient balance. Your current balance is ${shibBalance.toLocaleString()} SHIB.`); return; }
+            if(!binanceId || binanceId.length < 8){ showCustomAlert('مدخل غير صحيح!', 'يرجى إدخال معرف مستخدم Binance صحيح (الحد الأدنى 8 أرقام).', 'warning'); return; }
+            if(isNaN(amount) || amount < 400){ showCustomAlert('مبلغ غير صحيح!', 'الحد الأدنى للسحب هو 400 SHIB.', 'warning'); return; }
+            if(amount > shibBalance){ showCustomAlert('خطأ في الرصيد!', `رصيد غير كاف. رصيدك الحالي هو ${shibBalance.toLocaleString()} SHIB.`, 'error'); return; }
             
             // 1. Request Action ID from the Server ⬅️ تم التفعيل على Withdraw
             const actionId = await requestActionId('withdraw');
@@ -1060,9 +1283,15 @@ You will earn 5% of the revenue from every referral you bring through ads!
                 await loadUserData(); 
                 displayWithdrawals(); 
                 
-                Telegram.WebApp.showAlert(`✅ REQUEST SENT ✅\n\n[DETAILS] Binance ID: ${binanceId}\n[AMOUNT] ${amount.toLocaleString()} SHIB\n\nThe transfer will be processed within 24 hours.`);
+                showCustomAlert('تم إرسال الطلب!', `التفاصيل:\nمعرف Binance: ${binanceId}\nالمبلغ: ${amount.toLocaleString()} SHIB\n\nستتم معالجة التحويل خلال 24 ساعة.`, 'success');
             }
         }
+        
+        // Final event listener to ensure background audio starts on the first user interaction
+        document.addEventListener('click', function handler() {
+            playBGAudio();
+            document.removeEventListener('click', handler); // Remove after first successful click
+        });
     </script>
 </body>
 </html>
