@@ -1,4 +1,4 @@
-// /api/index.js (Final and Secure Version)
+// /api/index.js (Final and Secure Version with all fixes)
 
 /**
  * SHIB Ads WebApp Backend API
@@ -20,6 +20,7 @@ const REWARD_PER_AD = 3;
 const REFERRAL_COMMISSION_RATE = 0.05;
 const DAILY_MAX_ADS = 100; // Max ads limit
 const DAILY_MAX_SPINS = 15; // Max spins limit
+const RESET_INTERVAL_MS = 6 * 60 * 60 * 1000; // ⬅️ NEW: Reset limits every 6 hours
 const MIN_TIME_BETWEEN_ACTIONS_MS = 3000; // 3 seconds minimum time between watchAd/spin requests
 const ACTION_ID_EXPIRY_MS = 60000; // 60 seconds for Action ID to be valid
 const SPIN_SECTORS = [5, 10, 15, 20, 5];
@@ -71,6 +72,7 @@ async function supabaseFetch(tableName, method, body = null, queryParams = '?sel
       const responseText = await response.text();
       try {
           const jsonResponse = JSON.parse(responseText);
+          // Assuming user IDs are stored as BIGINT in DB, we should parse them safely if returned
           return Array.isArray(jsonResponse) ? jsonResponse : { success: true };
       } catch (e) {
           return { success: true };
@@ -90,10 +92,10 @@ async function supabaseFetch(tableName, method, body = null, queryParams = '?sel
 }
 
 /**
- * Daily Reset Logic: Resets ad/spin counters if 24 hours passed since last activity.
+ * Daily Reset Logic: Resets ad/spin counters if the set interval (6 hours) has passed since last activity.
+ * ⚠️ تم تعديلها لاستخدام RESET_INTERVAL_MS
  */
 async function resetDailyLimitsIfExpired(userId) {
-    const twentyFourHours = 24 * 60 * 60 * 1000;
     const now = Date.now();
 
     try {
@@ -105,7 +107,8 @@ async function resetDailyLimitsIfExpired(userId) {
         const user = users[0];
         const lastActivity = user.last_activity ? new Date(user.last_activity).getTime() : 0;
 
-        if (now - lastActivity > twentyFourHours) {
+        // التحقق من مرور الفترة الزمنية المحددة (6 ساعات)
+        if (now - lastActivity > RESET_INTERVAL_MS) {
             const updatePayload = {};
             if (user.ads_watched_today > 0) {
                 updatePayload.ads_watched_today = 0;
@@ -307,11 +310,11 @@ function validateInitData(initData) {
 }
 
 // ------------------------------------------------------------------
-// 🔑 Commission Helper Function (NEW - Fixes the calculation issue)
+// 🔑 Commission Helper Function (FIXED)
 // ------------------------------------------------------------------
 /**
  * Processes the commission for the referrer and updates their balance.
- * ⚠️ هذا هو التصحيح الذي يزيل Math.floor ويسمح بالكسور العشرية في العمولة.
+ * ⚠️ Fix: Math.floor removed to allow for accurate decimal commission (e.g., 0.15).
  * @param {number} referrerId - ID of the referrer.
  * @param {number} refereeId - ID of the user who performed the action.
  * @param {number} sourceReward - The reward the referee earned.
@@ -319,7 +322,7 @@ function validateInitData(initData) {
  */
 async function processCommission(referrerId, refereeId, sourceReward) {
     // 1. Calculate commission
-    // التصحيح: تم إزالة Math.floor() لضمان احتساب الكسور العشرية (مثل 0.15)
+    // ⬅️ التصحيح: تم إزالة Math.floor() للسماح باحتساب الكسور العشرية
     const commissionAmount = sourceReward * REFERRAL_COMMISSION_RATE; 
     
     // Check if commission is effectively zero 
@@ -358,6 +361,7 @@ async function processCommission(referrerId, refereeId, sourceReward) {
 
 /**
  * HANDLER: type: "getUserData"
+ * ⚠️ Fix: Added 'ref_by' to the select query.
  */
 async function handleGetUserData(req, res, body) {
     const { user_id } = body;
@@ -372,11 +376,12 @@ async function handleGetUserData(req, res, body) {
             { last_activity: new Date().toISOString() },
             `?id=eq.${id}&select=id`);
 
-        // 2. Check and reset daily limits (if 24 hours passed)
+        // 2. Check and reset daily limits (if 6 hours passed)
         await resetDailyLimitsIfExpired(id);
 
         // 3. Fetch user data
-        const users = await supabaseFetch('users', 'GET', null, `?id=eq.${id}&select=balance,ads_watched_today,spins_today,last_activity,is_banned`);
+        // ⬅️ التصحيح: تم إضافة ref_by إلى قائمة الأعمدة المراد جلبها
+        const users = await supabaseFetch('users', 'GET', null, `?id=eq.${id}&select=balance,ads_watched_today,spins_today,last_activity,is_banned,ref_by`);
 
         if (!users || users.length === 0 || users.success) {
             return sendSuccess(res, {
@@ -392,7 +397,7 @@ async function handleGetUserData(req, res, body) {
         }
 
 
-        // 4. Fetch referrals count
+        // 4. Fetch referrals count (uses ref_by implicitly in the database query)
         const referrals = await supabaseFetch('users', 'GET', null, `?ref_by=eq.${id}&select=id`);
         const referralsCount = Array.isArray(referrals) ? referrals.length : 0;
 
@@ -431,7 +436,7 @@ async function handleRegister(req, res, body) {
         balance: 0,
         ads_watched_today: 0,
         spins_today: 0,
-        ref_by: ref_by ? parseInt(ref_by) : null,
+        ref_by: ref_by ? parseInt(ref_by) : null, // ⬅️ يستخدم 'ref_by' للتخزين
         last_activity: new Date().toISOString(), 
         is_banned: false
       };
@@ -452,7 +457,7 @@ async function handleRegister(req, res, body) {
 
 /**
  * 2) type: "watchAd"
- * * ⚠️ التعديل هنا: لجلب معرف المحيل وتطبيق العمولة مباشرة.
+ * ⚠️ Fix: Uses 'ref_by' column for fetching referrer ID.
  */
 async function handleWatchAd(req, res, body) {
     const { user_id, action_id } = body;
@@ -466,14 +471,16 @@ async function handleWatchAd(req, res, body) {
         // 2. Check and reset daily limits before proceeding
         await resetDailyLimitsIfExpired(id);
 
-        // 3. Fetch current user data (⚠️ التعديل: يجب جلب referred_by)
-        const users = await supabaseFetch('users', 'GET', null, `?id=eq.${id}&select=balance,ads_watched_today,is_banned,referred_by`);
+        // 3. Fetch current user data 
+        // ⬅️ التصحيح: جلب 'ref_by' من قاعدة البيانات
+        const users = await supabaseFetch('users', 'GET', null, `?id=eq.${id}&select=balance,ads_watched_today,is_banned,ref_by`);
         if (!Array.isArray(users) || users.length === 0) {
             return sendError(res, 'User not found.', 404);
         }
         
         const user = users[0];
-        const referrerId = user.referred_by; // Get referrer ID
+        // ⬅️ التصحيح: استخدام 'ref_by' لتعيين متغير المُحيل
+        const referrerId = user.ref_by; // Get referrer ID
 
         // 4. Banned Check
         if (user.is_banned) {
@@ -506,7 +513,7 @@ async function handleWatchAd(req, res, body) {
           },
           `?id=eq.${id}`);
 
-        // 9. Commission Call (⚠️ الإضافة: استدعاء دالة العمولة الجديدة)
+        // 9. Commission Call (Now uses accurate decimal calculation)
         if (referrerId) {
             // Do not await to avoid blocking the user's reward response
             processCommission(referrerId, id, reward).catch(e => {
@@ -525,13 +532,12 @@ async function handleWatchAd(req, res, body) {
 
 /**
  * 3) type: "commission"
- * * ⚠️ التعديل هنا: لاستخدام الدالة الجديدة التي تم تصحيحها (processCommission)
+ * ⚠️ Fix: Uses the internal function 'processCommission' which has the decimal fix.
  */
 async function handleCommission(req, res, body) {
     const { referrer_id, referee_id, source_reward } = body;
     const referrerId = parseInt(referrer_id);
     const refereeId = parseInt(referee_id);
-    // Use REWARD_PER_AD as fallback if source_reward is not provided (though it should be)
     const sourceReward = parseFloat(source_reward) || REWARD_PER_AD; 
 
     // Call the internal commission function
@@ -586,7 +592,6 @@ async function handleSpinResult(req, res, body) {
     const id = parseInt(user_id);
     
     // 1. Check and Consume Action ID (Security Check)
-    // ⬇️ التعديل هنا: يجب التحقق من واستهلاك Action ID من نوع 'spinResult'
     if (!await validateAndUseActionId(res, id, action_id, 'spinResult')) return; 
     
     // 2. Check and reset daily limits before proceeding
