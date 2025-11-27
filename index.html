@@ -233,7 +233,7 @@
             color:#fff;border:none;padding:12px 30px;border-radius:10px;font-size:16px;font-weight:bold;cursor:pointer;
             box-shadow:0 5px 0 #4e555b;transition:all .1s ease;
         }
-        .back-btn:active{transform:translateY(3px);box-shadow:0 2px 0 #4e555b}
+        .back-btn:active{transform:translateY(2px);box-shadow:0 2px 0 #4e555b}
         .note{margin-top:15px;font-size:13px;color:#777;max-width:400px;text-align:center;background:rgba(255,140,0,0.1);padding:10px;border-radius:10px;border-left: 5px solid #ff8c00;}
 
         /* Withdrawal History Table */
@@ -695,6 +695,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
             return referrerId; 
         }
 
+        // ⬅️ THIS IS THE GLOBAL REFERRER ID VARIABLE. IT MUST BE KEPT UPDATED.
         let referrerId = getRefParam();
         const API_URL = '/api'; 
         
@@ -707,7 +708,8 @@ You will earn 5% of the revenue from every referral you bring through ads!
             }
 
             const initData = Telegram.WebApp.initData;
-            if (!initData) {
+            // The commission and generateActionId calls do not require initData
+            if (payload.type !== 'commission' && payload.type !== 'generateActionId' && !initData) {
                 showCustomAlert('Critical Error!', 'Initialization data is missing. Please restart the app. [CODE: ID_MS]', 'error');
                 return { ok: false, error: 'InitData missing' };
             }
@@ -832,6 +834,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
             updateUI();
         }
         
+        // ⬅️ MODIFIED: Function to load user data, now explicitly checks for and loads ref_by (referrerId)
         async function loadUserData() {
             if (!tgUser) return;
             
@@ -845,6 +848,13 @@ You will earn 5% of the revenue from every referral you bring through ads!
                     return;
                 }
                 
+                // ⬅️ FIX: Retrieve referrerId from the database (ref_by) if it was lost from URL
+                // This ensures the commission is sent even if the user opens the app directly after registration.
+                if (!referrerId && result.data.ref_by) {
+                     referrerId = result.data.ref_by; 
+                     console.log('Referrer ID retrieved from DB:', referrerId);
+                }
+
                 updateState({
                     balance: result.data.balance,
                     ads_watched_today: result.data.ads_watched_today,
@@ -942,6 +952,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                         });
                         
                         // 5. Referral commission logic (sends a separate commission request)
+                        // This uses the referrerId which is now maintained by loadUserData
                         if (referrerId) {
                             fetchApi({
                                 type: 'commission',
@@ -986,9 +997,11 @@ You will earn 5% of the revenue from every referral you bring through ads!
             loadUserData();
         }
 
+        // ⬅️ MODIFIED: Added loadUserData() to ensure referrer's balance is updated on return.
         function hideInvite(){
             document.getElementById('inviteScreen').classList.remove('visible');
             mainScreen.classList.add('visible');
+            loadUserData(); 
         }
         
         function generateReferralLink() {
@@ -1116,40 +1129,20 @@ You will earn 5% of the revenue from every referral you bring through ads!
             }
             
             // 1. Request Action ID from the Server for pre-spin (security check)
-            const preSpinActionId = await requestActionId('preSpin');
+            const preSpinActionId = await requestActionId('spinResult'); // Request Action ID for the result
             if (!preSpinActionId) return; // Error message already shown by fetchApi
 
-
-            // 2. Request pre-spin registration (Server checks for banned user and consumes the action ID)
-            const preSpinReqResult = await fetchApi({ 
-                type: 'preSpin',
-                action_id: preSpinActionId // ⬅️ Send Action ID
-            });
-
-            if (!preSpinReqResult.ok) {
-                await loadUserData(); 
-                return; 
-            }
-            
-            // 3. Request Action ID from the Server for the spin result (prize confirmation)
-            const spinResultActionId = await requestActionId('spinResult');
-            if (!spinResultActionId) {
-                showCustomAlert('Security Error!', 'Failed to get confirmation token. Please try again.', 'error');
-                await loadUserData(); 
-                return;
-            }
-            
-            // 4. Call GigaPub
+            // 2. Call GigaPub
             window.showGiga()
                 .then(async () => {
                     spinning = true;
                     spinBtn.disabled = true;
                     spinResult.textContent = 'Spinning...'; 
                     
-                    // 5. Request spin result and prize addition (Server runs limits, Rate Limit, and validates Action ID)
+                    // 3. Request spin result and prize addition (Server runs limits, Rate Limit, and validates Action ID)
                     const spinResultRes = await fetchApi({ 
                         type: 'spinResult',
-                        action_id: spinResultActionId // ⬅️ Send Action ID
+                        action_id: preSpinActionId // ⬅️ Send Action ID
                     });
                     
                     if (spinResultRes.ok) {
@@ -1173,7 +1166,7 @@ You will earn 5% of the revenue from every referral you bring through ads!
                         setTimeout(async ()=>{
                             canvas.style.transition = 'none'; 
                             
-                            // 6. Update balance and spin count with trusted server values 
+                            // 4. Update balance and spin count with trusted server values 
                             updateState({ 
                                 balance: spinResultRes.data.new_balance,
                                 spins_today: spinResultRes.data.new_spins_count
@@ -1216,9 +1209,12 @@ You will earn 5% of the revenue from every referral you bring through ads!
             loadUserData();
             updateUI(); 
         }
+
+        // ⬅️ MODIFIED: Added loadUserData() to ensure referrer's balance is updated on return.
         function hideSpin(){
             document.getElementById('spinScreen').classList.remove('visible');
             mainScreen.classList.add('visible');
+            loadUserData();
         }
         
         function showWithdraw(){
@@ -1232,9 +1228,11 @@ You will earn 5% of the revenue from every referral you bring through ads!
             displayWithdrawals(); 
         }
         
+        // ⬅️ MODIFIED: Added loadUserData() to ensure referrer's balance is updated on return.
         function hideWithdraw(){
             document.getElementById('withdrawScreen').classList.remove('visible');
             mainScreen.classList.add('visible');
+            loadUserData();
         }
         
         function displayWithdrawals() {
